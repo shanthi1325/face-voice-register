@@ -197,6 +197,7 @@ export default function VisitorRegistration() {
                   onCapture={handlePhotoCapture}
                   capturedImage={photoUrl}
                   onClear={() => { setPhotoBlob(null); setPhotoUrl(null); }}
+                  autoStart
                 />
               </div>
             </motion.div>
