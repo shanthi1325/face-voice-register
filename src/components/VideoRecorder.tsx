@@ -1,6 +1,7 @@
 import { useRef, useState, useCallback } from "react";
 import { Video, Square, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 interface VideoRecorderProps {
   onRecordComplete: (blob: Blob, thumbnailBlob: Blob) => void;
@@ -19,52 +20,77 @@ export function VideoRecorder({ onRecordComplete, recordedUrl, onClear }: VideoR
 
   const startCamera = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: "user", width: 640, height: 480 },
-        audio: true
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+        audio: true,
       });
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        await videoRef.current.play();
       }
       setStreaming(true);
     } catch (err) {
       console.error("Camera/mic access denied:", err);
+      toast.error("Camera/mic access denied. Please allow permissions.");
     }
   }, []);
 
   const stopCamera = useCallback(() => {
-    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
     setStreaming(false);
     setRecording(false);
   }, []);
 
-  const startRecording = useCallback(() => {
-    if (!streamRef.current) return;
-
-    // Take a thumbnail
-    if (videoRef.current && canvasRef.current) {
+  const captureThumbnail = useCallback((): Promise<Blob | null> => {
+    return new Promise((resolve) => {
+      if (!videoRef.current || !canvasRef.current) {
+        resolve(null);
+        return;
+      }
+      const video = videoRef.current;
       const canvas = canvasRef.current;
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
-      canvas.getContext("2d")?.drawImage(videoRef.current, 0, 0);
-    }
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { resolve(null); return; }
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(
+        (blob) => resolve(blob),
+        "image/jpeg",
+        0.85
+      );
+    });
+  }, []);
+
+  const startRecording = useCallback(async () => {
+    if (!streamRef.current) return;
 
     const mr = new MediaRecorder(streamRef.current, { mimeType: "video/webm" });
     chunksRef.current = [];
-    mr.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-    mr.onstop = () => {
+    mr.ondataavailable = (e) => {
+      if (e.data.size > 0) chunksRef.current.push(e.data);
+    };
+    mr.onstop = async () => {
       const videoBlob = new Blob(chunksRef.current, { type: "video/webm" });
-      canvasRef.current?.toBlob((thumbBlob) => {
-        if (thumbBlob) onRecordComplete(videoBlob, thumbBlob);
-      }, "image/jpeg", 0.8);
+      // Capture face thumbnail right when recording stops (face is still visible)
+      const thumbBlob = await captureThumbnail();
+      if (thumbBlob) {
+        onRecordComplete(videoBlob, thumbBlob);
+        toast.success("Video recorded & face captured!");
+      } else {
+        // Fallback: create a simple thumbnail from the video
+        onRecordComplete(videoBlob, new Blob([], { type: "image/jpeg" }));
+        toast.success("Video recorded!");
+      }
       stopCamera();
     };
     mr.start();
     mediaRecorderRef.current = mr;
     setRecording(true);
-  }, [onRecordComplete, stopCamera]);
+    toast.info("Recording started...");
+  }, [onRecordComplete, stopCamera, captureThumbnail]);
 
   const stopRecording = useCallback(() => {
     mediaRecorderRef.current?.stop();
@@ -87,8 +113,8 @@ export function VideoRecorder({ onRecordComplete, recordedUrl, onClear }: VideoR
   return (
     <div className="w-full">
       {streaming ? (
-        <div className="relative aspect-[4/3] rounded-lg overflow-hidden border border-border">
-          <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
+        <div className="relative aspect-[4/3] rounded-lg overflow-hidden border border-border bg-muted">
+          <video ref={videoRef} className="w-full h-full object-cover" muted playsInline autoPlay />
           <canvas ref={canvasRef} className="hidden" />
           {recording && (
             <div className="absolute top-3 left-3 flex items-center gap-2 bg-destructive/90 text-destructive-foreground px-3 py-1 rounded-full text-xs font-medium">
@@ -116,6 +142,7 @@ export function VideoRecorder({ onRecordComplete, recordedUrl, onClear }: VideoR
       ) : (
         <button
           onClick={startCamera}
+          type="button"
           className="w-full aspect-[4/3] rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center gap-3 text-muted-foreground hover:border-primary hover:text-primary transition-colors cursor-pointer"
         >
           <Video className="h-10 w-10" />

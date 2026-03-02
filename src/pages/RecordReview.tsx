@@ -89,13 +89,23 @@ export default function RecordReview() {
           <div className="bg-card rounded-xl p-6 shadow-card border border-border">
             <h3 className="font-display font-semibold text-lg mb-4">Video Review</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Record yourself sharing your expo experience. A photo will be captured automatically.
+              Record yourself sharing your expo experience. Your face will be captured automatically when you stop recording.
             </p>
             <VideoRecorder
               onRecordComplete={handleRecordComplete}
               recordedUrl={videoUrl}
               onClear={() => { setVideoBlob(null); setVideoUrl(null); setThumbBlob(null); }}
             />
+            {thumbBlob && thumbBlob.size > 0 && (
+              <div className="mt-4">
+                <p className="text-xs text-muted-foreground mb-2">Face captured at review:</p>
+                <img
+                  src={URL.createObjectURL(thumbBlob)}
+                  alt="Face at review"
+                  className="w-24 h-24 rounded-lg object-cover border border-border"
+                />
+              </div>
+            )}
           </div>
 
           <div className="bg-card rounded-xl p-6 shadow-card border border-border space-y-6">
