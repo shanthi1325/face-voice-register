@@ -23,11 +23,6 @@ export function CameraCapture({ onCapture, capturedImage, onClear, autoStart = f
         video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
       });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-        setCameraReady(true);
-      }
       setStreaming(true);
     } catch (err) {
       console.error("Camera access denied:", err);
@@ -98,7 +93,13 @@ export function CameraCapture({ onCapture, capturedImage, onClear, autoStart = f
       {streaming ? (
         <div className="relative aspect-[4/3] rounded-lg overflow-hidden border border-border bg-muted">
           <video
-            ref={videoRef}
+            ref={(el) => {
+              (videoRef as React.MutableRefObject<HTMLVideoElement | null>).current = el;
+              if (el && streamRef.current && !el.srcObject) {
+                el.srcObject = streamRef.current;
+                el.play().then(() => setCameraReady(true)).catch(console.error);
+              }
+            }}
             className="w-full h-full object-cover"
             muted
             playsInline
