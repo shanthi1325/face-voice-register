@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Star } from "lucide-react";
+import { Star, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { CameraCapture } from "@/components/CameraCapture";
@@ -13,13 +13,18 @@ export default function RecordReview() {
   const [reviewText, setReviewText] = useState("");
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [thumbBlob, setThumbBlob] = useState<Blob | null>(null);
+  const [photoBlob, setPhotoBlob] = useState<Blob | null>(null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const handleRecordComplete = (video: Blob, thumb: Blob) => {
+  const handleRecordComplete = (video: Blob, _thumb: Blob) => {
     setVideoBlob(video);
     setVideoUrl(URL.createObjectURL(video));
-    setThumbBlob(thumb);
+  };
+
+  const handlePhotoCapture = (blob: Blob) => {
+    setPhotoBlob(blob);
+    setPhotoUrl(URL.createObjectURL(blob));
   };
 
   const handleSubmit = async () => {
@@ -30,7 +35,7 @@ export default function RecordReview() {
     setSubmitting(true);
     try {
       let uploadedVideoUrl: string | undefined;
-      let uploadedThumbUrl: string | undefined;
+      let uploadedPhotoUrl: string | undefined;
 
       if (videoBlob) {
         const videoName = `reviews/${Date.now()}_review.webm`;
@@ -40,17 +45,19 @@ export default function RecordReview() {
         }
       }
 
-      if (thumbBlob) {
-        const thumbName = `reviews/${Date.now()}_thumb.jpg`;
-        await supabase.storage.from("expo-media").upload(thumbName, thumbBlob);
-        uploadedThumbUrl = supabase.storage.from("expo-media").getPublicUrl(thumbName).data.publicUrl;
+      if (photoBlob) {
+        const photoName = `reviews/${Date.now()}_face.jpg`;
+        const { error: uploadErr } = await supabase.storage.from("expo-media").upload(photoName, photoBlob);
+        if (!uploadErr) {
+          uploadedPhotoUrl = supabase.storage.from("expo-media").getPublicUrl(photoName).data.publicUrl;
+        }
       }
 
       const { error } = await supabase.from("video_reviews").insert({
         review_text: reviewText || null,
         rating,
         video_url: uploadedVideoUrl || null,
-        photo_at_review: uploadedThumbUrl || null,
+        photo_at_review: uploadedPhotoUrl || null,
       });
 
       if (error) throw error;
@@ -59,7 +66,8 @@ export default function RecordReview() {
       setReviewText("");
       setVideoBlob(null);
       setVideoUrl(null);
-      setThumbBlob(null);
+      setPhotoBlob(null);
+      setPhotoUrl(null);
     } catch (err: any) {
       toast.error(err.message || "Failed to submit review");
     } finally {
@@ -86,28 +94,37 @@ export default function RecordReview() {
           animate={{ opacity: 1, y: 0 }}
           className="grid md:grid-cols-2 gap-8"
         >
-          <div className="bg-card rounded-xl p-6 shadow-card border border-border">
-            <h3 className="font-display font-semibold text-lg mb-4">Video Review</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Record yourself sharing your expo experience. Your face will be captured automatically when you stop recording.
-            </p>
-            <VideoRecorder
-              onRecordComplete={handleRecordComplete}
-              recordedUrl={videoUrl}
-              onClear={() => { setVideoBlob(null); setVideoUrl(null); setThumbBlob(null); }}
-            />
-            {thumbBlob && thumbBlob.size > 0 && (
-              <div className="mt-4">
-                <p className="text-xs text-muted-foreground mb-2">Face captured at review:</p>
-                <img
-                  src={URL.createObjectURL(thumbBlob)}
-                  alt="Face at review"
-                  className="w-24 h-24 rounded-lg object-cover border border-border"
-                />
-              </div>
-            )}
+          {/* Left column: Video + Face capture */}
+          <div className="space-y-6">
+            <div className="bg-card rounded-xl p-6 shadow-card border border-border">
+              <h3 className="font-display font-semibold text-lg mb-4">Video Review</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Click to open camera and record your review
+              </p>
+              <VideoRecorder
+                onRecordComplete={handleRecordComplete}
+                recordedUrl={videoUrl}
+                onClear={() => { setVideoBlob(null); setVideoUrl(null); }}
+              />
+            </div>
+
+            <div className="bg-card rounded-xl p-6 shadow-card border border-border">
+              <h3 className="font-display font-semibold text-lg mb-4 flex items-center gap-2">
+                <Camera className="h-5 w-5 text-primary" />
+                Face Capture
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Capture your face for identification
+              </p>
+              <CameraCapture
+                onCapture={handlePhotoCapture}
+                capturedImage={photoUrl}
+                onClear={() => { setPhotoBlob(null); setPhotoUrl(null); }}
+              />
+            </div>
           </div>
 
+          {/* Right column: Rating + Text + Submit */}
           <div className="bg-card rounded-xl p-6 shadow-card border border-border space-y-6">
             <div>
               <h3 className="font-display font-semibold text-lg mb-3">Rating</h3>
