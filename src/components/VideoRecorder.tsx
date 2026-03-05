@@ -18,6 +18,13 @@ export function VideoRecorder({ onRecordComplete, recordedUrl, onClear }: VideoR
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
 
+  const attachStream = useCallback((stream: MediaStream) => {
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream;
+      videoRef.current.play().catch(console.error);
+    }
+  }, []);
+
   const startCamera = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -25,10 +32,6 @@ export function VideoRecorder({ onRecordComplete, recordedUrl, onClear }: VideoR
         audio: true,
       });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
       setStreaming(true);
     } catch (err) {
       console.error("Camera/mic access denied:", err);
@@ -114,7 +117,19 @@ export function VideoRecorder({ onRecordComplete, recordedUrl, onClear }: VideoR
     <div className="w-full">
       {streaming ? (
         <div className="relative aspect-[4/3] rounded-lg overflow-hidden border border-border bg-muted">
-          <video ref={videoRef} className="w-full h-full object-cover" muted playsInline autoPlay />
+          <video
+            ref={(el) => {
+              (videoRef as React.MutableRefObject<HTMLVideoElement | null>).current = el;
+              if (el && streamRef.current && !el.srcObject) {
+                el.srcObject = streamRef.current;
+                el.play().catch(console.error);
+              }
+            }}
+            className="w-full h-full object-cover"
+            muted
+            playsInline
+            autoPlay
+          />
           <canvas ref={canvasRef} className="hidden" />
           {recording && (
             <div className="absolute top-3 left-3 flex items-center gap-2 bg-destructive/90 text-destructive-foreground px-3 py-1 rounded-full text-xs font-medium">
