@@ -8,6 +8,7 @@ import { CameraCapture } from "@/components/CameraCapture";
 import { VoiceInput } from "@/components/VoiceInput";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { validateVisitorForm } from "@/lib/validation";
 
 const visitorTypes = [
   { value: "faculty", label: "Faculty", icon: Briefcase, desc: "Name, Email, Department" },
@@ -21,12 +22,19 @@ type VisitorType = typeof visitorTypes[number]["value"];
 export default function VisitorRegistration() {
   const [selectedType, setSelectedType] = useState<VisitorType | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [photoBlob, setPhotoBlob] = useState<Blob | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const updateField = (key: string, value: string) => setForm(prev => ({ ...prev, [key]: value }));
+  const updateField = (key: string, value: string) => {
+    setForm(prev => ({ ...prev, [key]: value }));
+    // Clear error when user types
+    if (fieldErrors[key]) {
+      setFieldErrors(prev => { const next = { ...prev }; delete next[key]; return next; });
+    }
+  };
 
   const handleVoiceResult = (fields: Record<string, string>) => {
     setForm(prev => ({ ...prev, ...fields }));
@@ -38,16 +46,26 @@ export default function VisitorRegistration() {
   };
 
   const handleSubmit = async () => {
-    if (!selectedType || !form.name) {
-      toast.error("Please provide at least your name");
+    if (!selectedType) {
+      toast.error("Please select a visitor type");
       return;
     }
+
+    // Validate form
+    const { success, data, errors } = validateVisitorForm(form);
+    if (!success) {
+      setFieldErrors(errors);
+      const firstError = Object.values(errors)[0];
+      toast.error(firstError || "Please fix the errors in the form");
+      return;
+    }
+
     setSubmitting(true);
     try {
       let uploadedPhotoUrl: string | undefined;
 
       if (photoBlob) {
-        const fileName = `faces/${Date.now()}_${form.name?.replace(/\s/g, "_")}.jpg`;
+        const fileName = `faces/${Date.now()}_${(data.name || "visitor").replace(/\s/g, "_")}.jpg`;
         const { error: uploadErr } = await supabase.storage.from("expo-media").upload(fileName, photoBlob);
         if (!uploadErr) {
           const { data: urlData } = supabase.storage.from("expo-media").getPublicUrl(fileName);
@@ -57,20 +75,29 @@ export default function VisitorRegistration() {
 
       const { error } = await supabase.from("visitors").insert({
         visitor_type: selectedType,
-        name: form.name,
-        email: form.email || null,
-        department: form.department || null,
-        branch: form.branch || null,
-        college: form.college || null,
-        organization: form.organization || null,
+        name: data.name!,
+        email: data.email || null,
+        department: data.department || null,
+        branch: data.branch || null,
+        college: data.college || null,
+        organization: data.organization || null,
         photo_url: uploadedPhotoUrl || null,
         face_captured_at: photoBlob ? new Date().toISOString() : null,
       });
 
       if (error) throw error;
-      toast.success("Registration successful! Welcome to the expo.");
+
+      // Send confirmation email if email provided
+      if (data.email) {
+        supabase.functions.invoke("send-registration-email", {
+          body: { name: data.name, email: data.email, visitor_type: selectedType },
+        }).catch(console.error); // Don't block on email
+      }
+
+      toast.success("Registration successful! Welcome to the expo." + (data.email ? " A confirmation email has been sent." : ""));
       setSelectedType(null);
       setForm({});
+      setFieldErrors({});
       setPhotoBlob(null);
       setPhotoUrl(null);
     } catch (err: any) {
@@ -143,18 +170,21 @@ export default function VisitorRegistration() {
                 <div className="space-y-4">
                   <div>
                     <Label htmlFor="name">Full Name *</Label>
-                    <Input id="name" value={form.name || ""} onChange={e => updateField("name", e.target.value)} placeholder="Your full name" />
+                    <Input id="name" value={form.name || ""} onChange={e => updateField("name", e.target.value)} placeholder="Your full name" className={fieldErrors.name ? "border-destructive" : ""} />
+                    {fieldErrors.name && <p className="text-xs text-destructive mt-1">{fieldErrors.name}</p>}
                   </div>
 
                   <div>
                     <Label htmlFor="email">Email</Label>
-                    <Input id="email" type="email" value={form.email || ""} onChange={e => updateField("email", e.target.value)} placeholder="your@email.com" />
+                    <Input id="email" type="email" value={form.email || ""} onChange={e => updateField("email", e.target.value)} placeholder="your@email.com" className={fieldErrors.email ? "border-destructive" : ""} />
+                    {fieldErrors.email && <p className="text-xs text-destructive mt-1">{fieldErrors.email}</p>}
                   </div>
 
                   {selectedType === "faculty" && (
                     <div>
                       <Label htmlFor="department">Department</Label>
-                      <Input id="department" value={form.department || ""} onChange={e => updateField("department", e.target.value)} placeholder="e.g. Computer Science" />
+                      <Input id="department" value={form.department || ""} onChange={e => updateField("department", e.target.value)} placeholder="e.g. Computer Science" className={fieldErrors.department ? "border-destructive" : ""} />
+                      {fieldErrors.department && <p className="text-xs text-destructive mt-1">{fieldErrors.department}</p>}
                     </div>
                   )}
 
@@ -162,11 +192,13 @@ export default function VisitorRegistration() {
                     <>
                       <div>
                         <Label htmlFor="branch">Branch</Label>
-                        <Input id="branch" value={form.branch || ""} onChange={e => updateField("branch", e.target.value)} placeholder="e.g. CSE, ECE" />
+                        <Input id="branch" value={form.branch || ""} onChange={e => updateField("branch", e.target.value)} placeholder="e.g. CSE, ECE" className={fieldErrors.branch ? "border-destructive" : ""} />
+                        {fieldErrors.branch && <p className="text-xs text-destructive mt-1">{fieldErrors.branch}</p>}
                       </div>
                       <div>
                         <Label htmlFor="college">College</Label>
-                        <Input id="college" value={form.college || ""} onChange={e => updateField("college", e.target.value)} placeholder="Your college name" />
+                        <Input id="college" value={form.college || ""} onChange={e => updateField("college", e.target.value)} placeholder="Your college name" className={fieldErrors.college ? "border-destructive" : ""} />
+                        {fieldErrors.college && <p className="text-xs text-destructive mt-1">{fieldErrors.college}</p>}
                       </div>
                     </>
                   )}
@@ -174,7 +206,8 @@ export default function VisitorRegistration() {
                   {selectedType === "guest" && (
                     <div>
                       <Label htmlFor="organization">Organization</Label>
-                      <Input id="organization" value={form.organization || ""} onChange={e => updateField("organization", e.target.value)} placeholder="Your organization" />
+                      <Input id="organization" value={form.organization || ""} onChange={e => updateField("organization", e.target.value)} placeholder="Your organization" className={fieldErrors.organization ? "border-destructive" : ""} />
+                      {fieldErrors.organization && <p className="text-xs text-destructive mt-1">{fieldErrors.organization}</p>}
                     </div>
                   )}
                 </div>
