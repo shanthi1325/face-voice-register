@@ -62,6 +62,35 @@ export default function VisitorRegistration() {
 
     setSubmitting(true);
     try {
+      // Check for duplicate registration by email
+      if (data.email) {
+        const { data: existing } = await supabase
+          .from("visitors")
+          .select("id, name, photo_url")
+          .eq("email", data.email)
+          .limit(1);
+        if (existing && existing.length > 0) {
+          toast.error(`This email (${data.email}) is already registered by "${existing[0].name}". Each person can only register once.`);
+          setSubmitting(false);
+          return;
+        }
+      }
+
+      // Check for duplicate face (if photo captured and name matches existing)
+      if (photoBlob && data.name) {
+        const { data: existingByName } = await supabase
+          .from("visitors")
+          .select("id, name, photo_url")
+          .eq("name", data.name.trim())
+          .not("photo_url", "is", null)
+          .limit(1);
+        if (existingByName && existingByName.length > 0) {
+          toast.error(`A visitor named "${data.name}" with a face photo is already registered. If this is you, you don't need to register again.`);
+          setSubmitting(false);
+          return;
+        }
+      }
+
       let uploadedPhotoUrl: string | undefined;
 
       if (photoBlob) {
@@ -89,12 +118,22 @@ export default function VisitorRegistration() {
 
       // Send confirmation email if email provided
       if (data.email) {
-        supabase.functions.invoke("send-registration-email", {
-          body: { name: data.name, email: data.email, visitor_type: selectedType },
-        }).catch(console.error); // Don't block on email
+        try {
+          const { data: emailResult } = await supabase.functions.invoke("send-registration-email", {
+            body: { name: data.name, email: data.email, visitor_type: selectedType },
+          });
+          if (emailResult?.emailSent) {
+            toast.success("Registration successful! A confirmation email has been sent to " + data.email);
+          } else {
+            toast.success("Registration successful! Welcome to the expo. (Email could not be sent at this time)");
+          }
+        } catch {
+          toast.success("Registration successful! Welcome to the expo.");
+        }
+      } else {
+        toast.success("Registration successful! Welcome to the expo.");
       }
 
-      toast.success("Registration successful! Welcome to the expo." + (data.email ? " A confirmation email has been sent." : ""));
       setSelectedType(null);
       setForm({});
       setFieldErrors({});
