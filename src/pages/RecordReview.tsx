@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Star } from "lucide-react";
+import { Star, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { VideoRecorder } from "@/components/VideoRecorder";
@@ -13,6 +13,7 @@ export default function RecordReview() {
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   const handleRecordComplete = (video: Blob, _thumb: Blob) => {
     setVideoBlob(video);
@@ -43,11 +44,7 @@ export default function RecordReview() {
       });
 
       if (error) throw error;
-      toast.success("Thank you for your review!");
-      setRating(0);
-      setReviewText("");
-      setVideoBlob(null);
-      setVideoUrl(null);
+      setSubmitted(true);
     } catch (err: any) {
       toast.error(err.message || "Failed to submit review");
     } finally {
@@ -68,6 +65,33 @@ export default function RecordReview() {
         </div>
       </header>
 
+      {submitted ? (
+        <main className="container max-w-2xl mx-auto px-4 py-12">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-card rounded-xl p-10 shadow-card border border-border text-center space-y-4"
+          >
+            <CheckCircle className="h-16 w-16 text-primary mx-auto" />
+            <h2 className="text-2xl font-display font-bold">Thank You for Your Review!</h2>
+            <p className="text-muted-foreground">
+              Your feedback is valuable to us. We appreciate you taking the time to share your experience at the expo.
+            </p>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSubmitted(false);
+                setRating(0);
+                setReviewText("");
+                setVideoBlob(null);
+                setVideoUrl(null);
+              }}
+            >
+              Submit Another Review
+            </Button>
+          </motion.div>
+        </main>
+      ) : (
       <main className="container max-w-2xl mx-auto px-4 py-8 -mt-4 space-y-6">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
@@ -127,6 +151,7 @@ export default function RecordReview() {
           </Button>
         </motion.div>
       </main>
+      )}
     </div>
   );
 }
