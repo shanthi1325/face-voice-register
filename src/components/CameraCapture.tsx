@@ -57,9 +57,33 @@ export function CameraCapture({ onCapture, capturedImage, onClear, autoStart = f
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    // Check image clarity by analyzing pixel brightness variance
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const pixels = imageData.data;
+    let sum = 0;
+    let sumSq = 0;
+    const totalPixels = pixels.length / 4;
+    for (let i = 0; i < pixels.length; i += 4) {
+      const brightness = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
+      sum += brightness;
+      sumSq += brightness * brightness;
+    }
+    const mean = sum / totalPixels;
+    const variance = sumSq / totalPixels - mean * mean;
+
+    if (variance < 200) {
+      toast.error("Photo is not clear. Please ensure good lighting and hold steady, then try again.");
+      return;
+    }
+
     canvas.toBlob(
       (blob) => {
         if (blob) {
+          if (blob.size < 5000) {
+            toast.error("Photo is too small or unclear. Please try again with better lighting.");
+            return;
+          }
           onCapture(blob);
           toast.success("Photo captured!");
         }
