@@ -1,0 +1,1 @@
+ALTER TABLE public.video_reviews ADD COLUMN project_title TEXT;
