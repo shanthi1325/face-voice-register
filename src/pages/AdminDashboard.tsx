@@ -166,18 +166,22 @@ export default function AdminDashboard() {
                   <div>
                     <Label>Name *</Label>
                     <Input value={newMember.name} onChange={e => setNewMember(p => ({ ...p, name: e.target.value }))} />
+                    {fieldErrors.name && <p className="text-xs text-destructive mt-1">{fieldErrors.name}</p>}
                   </div>
                   <div>
                     <Label>Role</Label>
                     <Input value={newMember.role} onChange={e => setNewMember(p => ({ ...p, role: e.target.value }))} placeholder="e.g. Coordinator" />
+                    {fieldErrors.role && <p className="text-xs text-destructive mt-1">{fieldErrors.role}</p>}
                   </div>
                   <div>
                     <Label>Email</Label>
                     <Input value={newMember.email} onChange={e => setNewMember(p => ({ ...p, email: e.target.value }))} />
+                    {fieldErrors.email && <p className="text-xs text-destructive mt-1">{fieldErrors.email}</p>}
                   </div>
                   <div>
                     <Label>Department</Label>
                     <Input value={newMember.department} onChange={e => setNewMember(p => ({ ...p, department: e.target.value }))} />
+                    {fieldErrors.department && <p className="text-xs text-destructive mt-1">{fieldErrors.department}</p>}
                   </div>
                   <Button className="w-full" onClick={addTeamMember} disabled={addingMember}>
                     {addingMember ? "Adding..." : "Add Member"}
