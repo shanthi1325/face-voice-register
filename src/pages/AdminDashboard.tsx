@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Users, Video, UserPlus, Star, Eye } from "lucide-react";
+import { Users, Video, UserPlus, Star, LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
+import { validateSchema, teamMemberSchema } from "@/lib/validation";
 
 export default function AdminDashboard() {
   const [visitors, setVisitors] = useState<any[]>([]);
@@ -14,6 +16,8 @@ export default function AdminDashboard() {
   const [reviews, setReviews] = useState<any[]>([]);
   const [newMember, setNewMember] = useState({ name: "", role: "", email: "", department: "" });
   const [addingMember, setAddingMember] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const { signOut } = useAuth();
 
   useEffect(() => {
     fetchData();
@@ -31,9 +35,16 @@ export default function AdminDashboard() {
   };
 
   const addTeamMember = async () => {
-    if (!newMember.name) { toast.error("Name is required"); return; }
+    const validation = validateSchema(teamMemberSchema, newMember);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      const firstErr = Object.values(validation.errors)[0];
+      if (firstErr) toast.error(firstErr);
+      return;
+    }
+    setFieldErrors({});
     setAddingMember(true);
-    const { error } = await supabase.from("team_members").insert(newMember);
+    const { error } = await supabase.from("team_members").insert(validation.data as any);
     if (error) toast.error(error.message);
     else {
       toast.success("Team member added");
@@ -54,10 +65,17 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-background">
       <header className="gradient-hero py-8">
         <div className="container max-w-6xl mx-auto px-4">
-          <h1 className="text-3xl md:text-4xl font-display font-bold text-primary-foreground">
-            Admin Dashboard
-          </h1>
-          <p className="text-primary-foreground/80 mt-2">Manage your expo</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-display font-bold text-primary-foreground">
+                Admin Dashboard
+              </h1>
+              <p className="text-primary-foreground/80 mt-2">Manage your expo</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={signOut} className="gap-2 bg-transparent border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10">
+              <LogOut className="h-4 w-4" /> Logout
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -148,18 +166,22 @@ export default function AdminDashboard() {
                   <div>
                     <Label>Name *</Label>
                     <Input value={newMember.name} onChange={e => setNewMember(p => ({ ...p, name: e.target.value }))} />
+                    {fieldErrors.name && <p className="text-xs text-destructive mt-1">{fieldErrors.name}</p>}
                   </div>
                   <div>
                     <Label>Role</Label>
                     <Input value={newMember.role} onChange={e => setNewMember(p => ({ ...p, role: e.target.value }))} placeholder="e.g. Coordinator" />
+                    {fieldErrors.role && <p className="text-xs text-destructive mt-1">{fieldErrors.role}</p>}
                   </div>
                   <div>
                     <Label>Email</Label>
                     <Input value={newMember.email} onChange={e => setNewMember(p => ({ ...p, email: e.target.value }))} />
+                    {fieldErrors.email && <p className="text-xs text-destructive mt-1">{fieldErrors.email}</p>}
                   </div>
                   <div>
                     <Label>Department</Label>
                     <Input value={newMember.department} onChange={e => setNewMember(p => ({ ...p, department: e.target.value }))} />
+                    {fieldErrors.department && <p className="text-xs text-destructive mt-1">{fieldErrors.department}</p>}
                   </div>
                   <Button className="w-full" onClick={addTeamMember} disabled={addingMember}>
                     {addingMember ? "Adding..." : "Add Member"}

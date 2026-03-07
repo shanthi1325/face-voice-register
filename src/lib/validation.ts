@@ -40,8 +40,35 @@ export const visitorRegistrationSchema = z.object({
 
 export type VisitorFormData = z.infer<typeof visitorRegistrationSchema>;
 
+export const reviewSchema = z.object({
+  projectTitle: z.string().min(1, "Project title is required").max(200, "Project title too long").transform(stripHtml),
+  reviewText: z.string().max(1000, "Review must be less than 1000 characters").transform(stripHtml).optional().or(z.literal("")),
+  rating: z.number().min(1, "Please give a rating").max(5),
+  visitorId: z.string().min(1, "Please select your name"),
+});
+
+export const teamMemberSchema = z.object({
+  name: nameSchema,
+  role: textFieldSchema("Role"),
+  email: optionalEmailSchema,
+  department: textFieldSchema("Department"),
+});
+
 export function validateVisitorForm(form: Record<string, string>) {
   const result = visitorRegistrationSchema.safeParse(form);
+  if (result.success) {
+    return { success: true as const, data: result.data, errors: {} as Record<string, string> };
+  }
+  const errors: Record<string, string> = {};
+  result.error.errors.forEach((e) => {
+    const key = e.path[0] as string;
+    if (!errors[key]) errors[key] = e.message;
+  });
+  return { success: false as const, data: null, errors };
+}
+
+export function validateSchema<T>(schema: z.ZodSchema<T>, data: unknown) {
+  const result = schema.safeParse(data);
   if (result.success) {
     return { success: true as const, data: result.data, errors: {} as Record<string, string> };
   }
