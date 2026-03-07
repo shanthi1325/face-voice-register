@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { VideoRecorder } from "@/components/VideoRecorder";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { validateSchema, reviewSchema } from "@/lib/validation";
 
 export default function RecordReview() {
   const [rating, setRating] = useState(0);
@@ -32,9 +33,17 @@ export default function RecordReview() {
   };
 
   const handleSubmit = async () => {
-    if (rating === 0) { toast.error("Please give a rating"); return; }
-    if (!projectTitle.trim()) { toast.error("Please enter a project title"); return; }
-    if (!selectedVisitorId) { toast.error("Please select your name (you must register first)"); return; }
+    const validation = validateSchema(reviewSchema, {
+      projectTitle: projectTitle,
+      reviewText: reviewText,
+      rating,
+      visitorId: selectedVisitorId,
+    });
+    if (!validation.success) {
+      const firstErr = Object.values(validation.errors)[0];
+      if (firstErr) toast.error(firstErr);
+      return;
+    }
 
     setSubmitting(true);
     try {
