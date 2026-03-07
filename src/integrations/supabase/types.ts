@@ -55,6 +55,7 @@ export type Database = {
           created_at: string
           id: string
           photo_at_review: string | null
+          project_title: string | null
           rating: number | null
           review_text: string | null
           video_url: string | null
@@ -64,6 +65,7 @@ export type Database = {
           created_at?: string
           id?: string
           photo_at_review?: string | null
+          project_title?: string | null
           rating?: number | null
           review_text?: string | null
           video_url?: string | null
@@ -73,6 +75,7 @@ export type Database = {
           created_at?: string
           id?: string
           photo_at_review?: string | null
+          project_title?: string | null
           rating?: number | null
           review_text?: string | null
           video_url?: string | null

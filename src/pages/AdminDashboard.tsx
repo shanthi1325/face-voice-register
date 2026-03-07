@@ -189,27 +189,47 @@ export default function AdminDashboard() {
 
           <TabsContent value="reviews">
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {reviews.map((r) => (
-                <div key={r.id} className="bg-card rounded-xl border border-border overflow-hidden shadow-card">
-                  {r.video_url && (
-                    <video src={r.video_url} controls className="w-full aspect-video object-cover" />
-                  )}
-                  {!r.video_url && r.photo_at_review && (
-                    <img src={r.photo_at_review} alt="" className="w-full aspect-video object-cover" />
-                  )}
-                  <div className="p-4">
-                    <div className="flex gap-0.5 mb-2">
-                      {[1,2,3,4,5].map(s => (
-                        <Star key={s} className={`h-4 w-4 ${s <= (r.rating || 0) ? "fill-accent text-accent" : "text-border"}`} />
-                      ))}
+              {reviews.map((r) => {
+                const visitor = visitors.find((v) => v.id === r.visitor_id);
+                return (
+                  <div key={r.id} className="bg-card rounded-xl border border-border overflow-hidden shadow-card">
+                    {r.video_url && (
+                      <video src={r.video_url} controls className="w-full aspect-video object-cover" />
+                    )}
+                    {!r.video_url && r.photo_at_review && (
+                      <img src={r.photo_at_review} alt="" className="w-full aspect-video object-cover" />
+                    )}
+                    <div className="p-4 space-y-2">
+                      {r.project_title && (
+                        <div className="inline-flex items-center rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent">
+                          {r.project_title}
+                        </div>
+                      )}
+                      {visitor && (
+                        <div className="flex items-center gap-2">
+                          {visitor.photo_url ? (
+                            <img src={visitor.photo_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs font-bold">
+                              {visitor.name?.charAt(0)}
+                            </div>
+                          )}
+                          <span className="text-sm font-medium">{visitor.name}</span>
+                        </div>
+                      )}
+                      <div className="flex gap-0.5">
+                        {[1,2,3,4,5].map(s => (
+                          <Star key={s} className={`h-4 w-4 ${s <= (r.rating || 0) ? "fill-accent text-accent" : "text-border"}`} />
+                        ))}
+                      </div>
+                      {r.review_text && <p className="text-sm text-muted-foreground">{r.review_text}</p>}
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(r.created_at).toLocaleString()}
+                      </p>
                     </div>
-                    {r.review_text && <p className="text-sm text-muted-foreground">{r.review_text}</p>}
-                    <p className="text-xs text-muted-foreground mt-2">
-                      {new Date(r.created_at).toLocaleString()}
-                    </p>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {reviews.length === 0 && (
                 <div className="col-span-full text-center py-8 text-muted-foreground">No reviews yet</div>
               )}
