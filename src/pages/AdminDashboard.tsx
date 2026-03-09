@@ -14,25 +14,39 @@ export default function AdminDashboard() {
   const [visitors, setVisitors] = useState<any[]>([]);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [reviews, setReviews] = useState<any[]>([]);
+  const [signedUrls, setSignedUrls] = useState<Map<string, string>>(new Map());
   const [newMember, setNewMember] = useState({ name: "", role: "", email: "", department: "" });
   const [addingMember, setAddingMember] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     const [v, t, r] = await Promise.all([
       supabase.from("visitors").select("*").order("created_at", { ascending: false }),
       supabase.from("team_members").select("*").order("created_at", { ascending: false }),
       supabase.from("video_reviews").select("*").order("created_at", { ascending: false }),
     ]);
-    if (v.data) setVisitors(v.data);
+    const visitorsData = v.data || [];
+    const reviewsData = r.data || [];
+    setVisitors(visitorsData);
     if (t.data) setTeamMembers(t.data);
-    if (r.data) setReviews(r.data);
-  };
+    setReviews(reviewsData);
+
+    // Get signed URLs for private bucket media
+    const allUrls: string[] = [];
+    visitorsData.forEach((vis: any) => { if (vis.photo_url) allUrls.push(vis.photo_url); });
+    reviewsData.forEach((rev: any) => {
+      if (rev.video_url) allUrls.push(rev.video_url);
+      if (rev.photo_at_review) allUrls.push(rev.photo_at_review);
+    });
+    if (allUrls.length > 0) {
+      const urls = await getSignedUrls(allUrls);
+      setSignedUrls(urls);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const addTeamMember = async () => {
     const validation = validateSchema(teamMemberSchema, newMember);
