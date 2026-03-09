@@ -44,7 +44,6 @@ export const reviewSchema = z.object({
   projectTitle: z.string().min(1, "Project title is required").max(200, "Project title too long").transform(stripHtml),
   reviewText: z.string().max(1000, "Review must be less than 1000 characters").transform(stripHtml).optional().or(z.literal("")),
   rating: z.number().min(1, "Please give a rating").max(5),
-  visitorId: z.string().min(1, "Please select your name"),
 });
 
 export const teamMemberSchema = z.object({
