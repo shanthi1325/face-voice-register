@@ -154,6 +154,34 @@ export default function RecordReview() {
               )}
             </div>
 
+            {/* Show matched face photo when visitor is selected */}
+            {selectedVisitorId && (() => {
+              const selected = visitors.find(v => v.id === selectedVisitorId);
+              if (!selected) return null;
+              const photoUrl = selected.photo_url ? signedPhotoUrls.get(selected.photo_url) : null;
+              return (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="flex items-center gap-4 p-4 rounded-lg bg-primary/5 border border-primary/20"
+                >
+                  {photoUrl ? (
+                    <img src={photoUrl} alt={selected.name} className="w-16 h-16 rounded-full object-cover ring-2 ring-primary/30" />
+                  ) : (
+                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary font-display font-bold text-2xl">
+                      {selected.name?.charAt(0)}
+                    </div>
+                  )}
+                  <div>
+                    <p className="font-semibold text-foreground">{selected.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {photoUrl ? "✅ Face photo matched from registration" : "No face photo on file"}
+                    </p>
+                  </div>
+                </motion.div>
+              );
+            })()}
+
             <div>
               <Label>Project Title *</Label>
               <Input
