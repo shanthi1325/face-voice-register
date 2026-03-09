@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
-import { Star, CheckCircle, Loader2, ScanFace, RefreshCw } from "lucide-react";
+import { Star, CheckCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,6 @@ import { VideoRecorder } from "@/components/VideoRecorder";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { validateSchema, reviewSchema } from "@/lib/validation";
-import { getSignedUrls } from "@/lib/signedUrl";
 
 export default function RecordReview() {
   const [rating, setRating] = useState(0);
@@ -17,115 +16,21 @@ export default function RecordReview() {
   const [projectTitle, setProjectTitle] = useState("");
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [thumbnailBlob, setThumbnailBlob] = useState<Blob | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [selectedVisitorId, setSelectedVisitorId] = useState<string>("");
-  const [matchedVisitor, setMatchedVisitor] = useState<{ name: string; photoUrl?: string; confidence: number } | null>(null);
-  const [scanning, setScanning] = useState(false);
-  const [scanCameraOpen, setScanCameraOpen] = useState(false);
-  const [capturedFaceBase64, setCapturedFaceBase64] = useState<string | null>(null);
 
-  const scanVideoRef = useRef<HTMLVideoElement | null>(null);
-  const scanCanvasRef = useRef<HTMLCanvasElement>(null);
-  const scanStreamRef = useRef<MediaStream | null>(null);
-
-  // Auto-open camera on mount
-  useEffect(() => {
-    openScanCamera();
-    return () => {
-      scanStreamRef.current?.getTracks().forEach(t => t.stop());
-    };
-  }, []);
-
-  const openScanCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
-      });
-      scanStreamRef.current = stream;
-      setScanCameraOpen(true);
-    } catch {
-      toast.error("Camera access denied. Please allow permissions.");
-    }
-  };
-
-  const closeScanCamera = useCallback(() => {
-    scanStreamRef.current?.getTracks().forEach(t => t.stop());
-    scanStreamRef.current = null;
-    setScanCameraOpen(false);
-  }, []);
-
-  const captureAndMatch = useCallback(async () => {
-    if (!scanVideoRef.current || !scanCanvasRef.current) return;
-    const video = scanVideoRef.current;
-    const canvas = scanCanvasRef.current;
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    const base64 = canvas.toDataURL("image/jpeg", 0.8).split(",")[1];
-    setCapturedFaceBase64(base64);
-
-    setScanning(true);
-    setMatchedVisitor(null);
-    try {
-      const { data, error } = await supabase.functions.invoke("match-face", {
-        body: { capturedImageBase64: base64 },
-      });
-
-      if (error) throw error;
-
-      if (data?.matched && data.visitor_id) {
-        setSelectedVisitorId(data.visitor_id);
-
-        // Get signed photo URL for matched visitor
-        let photoUrl: string | undefined;
-        const { data: visitor } = await supabase
-          .from("visitors")
-          .select("photo_url")
-          .eq("id", data.visitor_id)
-          .single();
-        if (visitor?.photo_url) {
-          const signed = await getSignedUrls([visitor.photo_url]);
-          photoUrl = signed.get(visitor.photo_url) || undefined;
-        }
-
-        setMatchedVisitor({
-          name: data.visitor_name,
-          photoUrl,
-          confidence: data.confidence || 0,
-        });
-        toast.success(`Identified: ${data.visitor_name}!`);
-        closeScanCamera();
-      } else {
-        toast.error(data?.message || "No matching face found. Please try again.");
-      }
-    } catch (err: any) {
-      toast.error("Face matching failed. Please try again.");
-      console.error("match-face error:", err);
-    } finally {
-      setScanning(false);
-    }
-  }, [closeScanCamera]);
-
-  const handleRecordComplete = (video: Blob, _thumb: Blob) => {
+  const handleRecordComplete = (video: Blob, thumb: Blob) => {
     setVideoBlob(video);
     setVideoUrl(URL.createObjectURL(video));
+    setThumbnailBlob(thumb);
   };
 
   const handleSubmit = async () => {
-    if (!selectedVisitorId) {
-      toast.error("Please scan your face to identify yourself first.");
-      return;
-    }
-
     const validation = validateSchema(reviewSchema, {
       projectTitle,
       reviewText,
       rating,
-      visitorId: selectedVisitorId,
     });
     if (!validation.success) {
       const firstErr = Object.values(validation.errors)[0];
@@ -133,20 +38,37 @@ export default function RecordReview() {
       return;
     }
 
+    if (!thumbnailBlob || thumbnailBlob.size === 0) {
+      toast.error("Please record a video first so we can identify you.");
+      return;
+    }
+
     setSubmitting(true);
     try {
-      // Upload review face photo
+      // Convert thumbnail to base64 for face matching
+      const base64 = await blobToBase64(thumbnailBlob);
+
+      // Match face against registered visitors
+      const { data: matchData, error: matchError } = await supabase.functions.invoke("match-face", {
+        body: { capturedImageBase64: base64 },
+      });
+
+      if (matchError) throw matchError;
+
+      if (!matchData?.matched || !matchData.visitor_id) {
+        toast.error(matchData?.message || "Could not identify you. Please make sure you registered first.");
+        setSubmitting(false);
+        return;
+      }
+
+      toast.success(`Identified as ${matchData.visitor_name} (${Math.round((matchData.confidence || 0) * 100)}% confidence)`);
+
+      // Upload face photo
       let photoAtReviewUrl: string | undefined;
-      if (capturedFaceBase64) {
-        const photoName = `reviews/${Date.now()}_face.jpg`;
-        const binaryStr = atob(capturedFaceBase64);
-        const bytes = new Uint8Array(binaryStr.length);
-        for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
-        const blob = new Blob([bytes], { type: "image/jpeg" });
-        const { error: photoUpErr } = await supabase.storage.from("expo-media").upload(photoName, blob);
-        if (!photoUpErr) {
-          photoAtReviewUrl = supabase.storage.from("expo-media").getPublicUrl(photoName).data.publicUrl;
-        }
+      const photoName = `reviews/${Date.now()}_face.jpg`;
+      const { error: photoUpErr } = await supabase.storage.from("expo-media").upload(photoName, thumbnailBlob);
+      if (!photoUpErr) {
+        photoAtReviewUrl = supabase.storage.from("expo-media").getPublicUrl(photoName).data.publicUrl;
       }
 
       // Upload video
@@ -163,7 +85,7 @@ export default function RecordReview() {
         review_text: reviewText || null,
         rating,
         video_url: uploadedVideoUrl || null,
-        visitor_id: selectedVisitorId,
+        visitor_id: matchData.visitor_id,
         project_title: projectTitle.trim(),
         photo_at_review: photoAtReviewUrl || null,
       });
@@ -184,17 +106,7 @@ export default function RecordReview() {
     setProjectTitle("");
     setVideoBlob(null);
     setVideoUrl(null);
-    setSelectedVisitorId("");
-    setMatchedVisitor(null);
-    setCapturedFaceBase64(null);
-    openScanCamera();
-  };
-
-  const retryScan = () => {
-    setSelectedVisitorId("");
-    setMatchedVisitor(null);
-    setCapturedFaceBase64(null);
-    openScanCamera();
+    setThumbnailBlob(null);
   };
 
   return (
@@ -225,83 +137,10 @@ export default function RecordReview() {
         </main>
       ) : (
         <main className="container max-w-2xl mx-auto px-4 py-8 -mt-4 space-y-6">
-          {/* Face Scan - auto identify */}
-          {!matchedVisitor && scanCameraOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-card rounded-xl p-6 shadow-card border border-border space-y-4"
-            >
-              <h3 className="font-display font-semibold text-lg flex items-center gap-2">
-                <ScanFace className="h-5 w-5 text-primary" /> Face Identification
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Look at the camera and tap "Scan" to identify yourself from your registration photo.
-              </p>
-              <div className="relative aspect-[4/3] rounded-lg overflow-hidden border border-border bg-muted">
-                <video
-                  ref={(el) => {
-                    scanVideoRef.current = el;
-                    if (el && scanStreamRef.current && !el.srcObject) {
-                      el.srcObject = scanStreamRef.current;
-                      el.play().catch(console.error);
-                    }
-                  }}
-                  className="w-full h-full object-cover"
-                  muted
-                  playsInline
-                  autoPlay
-                />
-                <canvas ref={scanCanvasRef} className="hidden" />
-                {scanning && (
-                  <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
-                    <div className="flex flex-col items-center gap-2">
-                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                      <span className="text-sm font-medium text-foreground">Matching face...</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-              <Button onClick={captureAndMatch} disabled={scanning} className="w-full gap-2">
-                <ScanFace className="h-4 w-4" />
-                {scanning ? "Scanning..." : "Scan Face"}
-              </Button>
-            </motion.div>
-          )}
-
-          {/* Matched visitor display */}
-          {matchedVisitor && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="bg-card rounded-xl p-6 shadow-card border border-border"
-            >
-              <div className="flex items-center gap-4 p-4 rounded-lg bg-primary/5 border border-primary/20">
-                {matchedVisitor.photoUrl ? (
-                  <img src={matchedVisitor.photoUrl} alt={matchedVisitor.name} className="w-16 h-16 rounded-full object-cover ring-2 ring-primary/30" />
-                ) : (
-                  <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary font-display font-bold text-2xl">
-                    {matchedVisitor.name?.charAt(0)}
-                  </div>
-                )}
-                <div className="flex-1">
-                  <p className="font-semibold text-foreground">{matchedVisitor.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    ✅ Identified ({Math.round(matchedVisitor.confidence * 100)}% confidence)
-                  </p>
-                </div>
-                <Button variant="ghost" size="sm" onClick={retryScan} className="gap-1">
-                  <RefreshCw className="h-4 w-4" /> Rescan
-                </Button>
-              </div>
-            </motion.div>
-          )}
-
           {/* Project Title */}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.05 }}
             className="bg-card rounded-xl p-6 shadow-card border border-border"
           >
             <Label>Project Title *</Label>
@@ -317,14 +156,17 @@ export default function RecordReview() {
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
+            transition={{ delay: 0.05 }}
             className="bg-card rounded-xl p-6 shadow-card border border-border"
           >
-            <h3 className="font-display font-semibold text-lg mb-4">Video Review</h3>
+            <h3 className="font-display font-semibold text-lg mb-2">Video Review *</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Your face will be automatically matched with your registration to identify you.
+            </p>
             <VideoRecorder
               onRecordComplete={handleRecordComplete}
               recordedUrl={videoUrl}
-              onClear={() => { setVideoBlob(null); setVideoUrl(null); }}
+              onClear={() => { setVideoBlob(null); setVideoUrl(null); setThumbnailBlob(null); }}
             />
           </motion.div>
 
@@ -332,7 +174,7 @@ export default function RecordReview() {
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
+            transition={{ delay: 0.1 }}
             className="bg-card rounded-xl p-6 shadow-card border border-border space-y-6"
           >
             <div>
@@ -356,12 +198,31 @@ export default function RecordReview() {
               />
             </div>
 
-            <Button className="w-full" size="lg" onClick={handleSubmit} disabled={submitting || !selectedVisitorId}>
-              {submitting ? "Submitting..." : "Submit Review"}
+            <Button className="w-full" size="lg" onClick={handleSubmit} disabled={submitting}>
+              {submitting ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Identifying & Submitting...
+                </span>
+              ) : (
+                "Submit Review"
+              )}
             </Button>
           </motion.div>
         </main>
       )}
     </div>
   );
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      resolve(result.split(",")[1]);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 }
