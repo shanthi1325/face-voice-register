@@ -199,71 +199,55 @@ export default function RecordReview() {
         </main>
       ) : (
         <main className="container max-w-2xl mx-auto px-4 py-8 -mt-4 space-y-6">
-          {/* Face Scan & Identity */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-card rounded-xl p-6 shadow-card border border-border space-y-4"
-          >
-            <h3 className="font-display font-semibold text-lg">Identify Yourself</h3>
-            <p className="text-sm text-muted-foreground">
-              Scan your face to automatically match with your registration, or select your name manually.
-            </p>
-
-            {/* Face scan camera */}
-            {scanCameraOpen ? (
-              <div className="space-y-3">
-                <div className="relative aspect-[4/3] rounded-lg overflow-hidden border border-border bg-muted">
-                  <video
-                    ref={(el) => {
-                      (scanVideoRef as React.MutableRefObject<HTMLVideoElement | null>).current = el;
-                      if (el && scanStreamRef.current && !el.srcObject) {
-                        el.srcObject = scanStreamRef.current;
-                        el.play().catch(console.error);
-                      }
-                    }}
-                    className="w-full h-full object-cover"
-                    muted
-                    playsInline
-                    autoPlay
-                  />
-                  <canvas ref={scanCanvasRef} className="hidden" />
-                  {scanning && (
-                    <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
-                      <div className="flex flex-col items-center gap-2">
-                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                        <span className="text-sm font-medium text-foreground">Matching face...</span>
-                      </div>
+          {/* Auto Face Scan */}
+          {!selectedVisitor && scanCameraOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-card rounded-xl p-6 shadow-card border border-border space-y-4"
+            >
+              <div className="relative aspect-[4/3] rounded-lg overflow-hidden border border-border bg-muted">
+                <video
+                  ref={(el) => {
+                    (scanVideoRef as React.MutableRefObject<HTMLVideoElement | null>).current = el;
+                    if (el && scanStreamRef.current && !el.srcObject) {
+                      el.srcObject = scanStreamRef.current;
+                      el.play().catch(console.error);
+                    }
+                  }}
+                  className="w-full h-full object-cover"
+                  muted
+                  playsInline
+                  autoPlay
+                />
+                <canvas ref={scanCanvasRef} className="hidden" />
+                {scanning && (
+                  <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                      <span className="text-sm font-medium text-foreground">Matching face...</span>
                     </div>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <Button onClick={captureAndMatch} disabled={scanning} className="flex-1 gap-2">
-                    <ScanFace className="h-4 w-4" />
-                    {scanning ? "Scanning..." : "Scan Face"}
-                  </Button>
-                  <Button variant="outline" onClick={closeScanCamera} disabled={scanning}>
-                    Cancel
-                  </Button>
-                </div>
-                {matchResult && !matchResult.matched && (
-                  <p className="text-sm text-destructive">No match found. Try again or select your name below.</p>
+                  </div>
                 )}
               </div>
-            ) : (
-              <Button variant="outline" onClick={openScanCamera} className="w-full gap-2">
-                <ScanFace className="h-5 w-5" />
-                Scan Face to Identify
+              <Button onClick={captureAndMatch} disabled={scanning} className="w-full gap-2">
+                <ScanFace className="h-4 w-4" />
+                {scanning ? "Scanning..." : "Scan Face"}
               </Button>
-            )}
+              {matchResult && !matchResult.matched && (
+                <p className="text-sm text-destructive">No match found. Please try again.</p>
+              )}
+            </motion.div>
+          )}
 
-            {/* Match result / selected visitor display */}
-            {selectedVisitor && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="flex items-center gap-4 p-4 rounded-lg bg-primary/5 border border-primary/20"
-              >
+          {/* Matched visitor display */}
+          {selectedVisitor && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-card rounded-xl p-6 shadow-card border border-border"
+            >
+              <div className="flex items-center gap-4 p-4 rounded-lg bg-primary/5 border border-primary/20">
                 {selectedPhotoUrl ? (
                   <img src={selectedPhotoUrl} alt={selectedVisitor.name} className="w-16 h-16 rounded-full object-cover ring-2 ring-primary/30" />
                 ) : (
@@ -274,31 +258,12 @@ export default function RecordReview() {
                 <div>
                   <p className="font-semibold text-foreground">{selectedVisitor.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {matchResult?.matched
-                      ? `✅ Face matched (${Math.round((matchResult.confidence || 0) * 100)}% confidence)`
-                      : selectedPhotoUrl
-                        ? "✅ Registration photo on file"
-                        : "No face photo on file"}
+                    ✅ Face matched ({Math.round((matchResult?.confidence || 0) * 100)}% confidence)
                   </p>
                 </div>
-              </motion.div>
-            )}
-
-            {/* Manual fallback dropdown */}
-            <div>
-              <Label>Or Select Your Name Manually *</Label>
-              <Select value={selectedVisitorId} onValueChange={(val) => { setSelectedVisitorId(val); setMatchResult(null); }}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose your registered name" />
-                </SelectTrigger>
-                <SelectContent>
-                  {visitors.map((v) => (
-                    <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </motion.div>
+              </div>
+            </motion.div>
+          )}
 
           {/* Project Title */}
           <motion.div
