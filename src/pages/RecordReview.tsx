@@ -56,6 +56,13 @@ export default function RecordReview() {
     }
   }, []);
 
+  // Auto-open camera on mount
+  useEffect(() => {
+    if (!selectedVisitorId) {
+      openScanCamera();
+    }
+  }, []);
+
   const closeScanCamera = useCallback(() => {
     scanStreamRef.current?.getTracks().forEach(t => t.stop());
     scanStreamRef.current = null;
