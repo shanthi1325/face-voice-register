@@ -10,6 +10,7 @@ import { VideoRecorder } from "@/components/VideoRecorder";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { validateSchema, reviewSchema } from "@/lib/validation";
+import { getSignedUrls } from "@/lib/signedUrl";
 
 export default function RecordReview() {
   const [rating, setRating] = useState(0);
@@ -21,10 +22,20 @@ export default function RecordReview() {
   const [submitted, setSubmitted] = useState(false);
   const [visitors, setVisitors] = useState<any[]>([]);
   const [selectedVisitorId, setSelectedVisitorId] = useState<string>("");
+  const [signedPhotoUrls, setSignedPhotoUrls] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
     supabase.from("visitors").select("id, name, photo_url").order("created_at", { ascending: false })
-      .then(({ data }) => { if (data) setVisitors(data); });
+      .then(async ({ data }) => {
+        if (data) {
+          setVisitors(data);
+          const photoUrls = data.filter(v => v.photo_url).map(v => v.photo_url!);
+          if (photoUrls.length > 0) {
+            const signed = await getSignedUrls(photoUrls);
+            setSignedPhotoUrls(signed);
+          }
+        }
+      });
   }, []);
 
   const handleRecordComplete = (video: Blob, _thumb: Blob) => {
