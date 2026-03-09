@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Star, CheckCircle, ScanFace, Loader2 } from "lucide-react";
+import { Star, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,6 @@ import { VideoRecorder } from "@/components/VideoRecorder";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { validateSchema, reviewSchema } from "@/lib/validation";
-import { getSignedUrls } from "@/lib/signedUrl";
 
 export default function RecordReview() {
   const [rating, setRating] = useState(0);
@@ -22,90 +21,13 @@ export default function RecordReview() {
   const [submitted, setSubmitted] = useState(false);
   const [visitors, setVisitors] = useState<any[]>([]);
   const [selectedVisitorId, setSelectedVisitorId] = useState<string>("");
-  const [signedPhotoUrls, setSignedPhotoUrls] = useState<Map<string, string>>(new Map());
-  const [scanning, setScanning] = useState(false);
-  const [matchResult, setMatchResult] = useState<{ matched: boolean; visitor_name?: string; confidence?: number } | null>(null);
-  const scanVideoRef = useRef<HTMLVideoElement>(null);
-  const scanCanvasRef = useRef<HTMLCanvasElement>(null);
-  const scanStreamRef = useRef<MediaStream | null>(null);
-  const [scanCameraOpen, setScanCameraOpen] = useState(false);
 
   useEffect(() => {
-    supabase.from("visitors").select("id, name, photo_url").order("created_at", { ascending: false })
-      .then(async ({ data }) => {
-        if (data) {
-          setVisitors(data);
-          const photoUrls = data.filter(v => v.photo_url).map(v => v.photo_url!);
-          if (photoUrls.length > 0) {
-            const signed = await getSignedUrls(photoUrls);
-            setSignedPhotoUrls(signed);
-          }
-        }
+    supabase.from("visitors").select("id, name").order("created_at", { ascending: false })
+      .then(({ data }) => {
+        if (data) setVisitors(data);
       });
   }, []);
-
-  const openScanCamera = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
-      });
-      scanStreamRef.current = stream;
-      setScanCameraOpen(true);
-    } catch {
-      toast.error("Camera access denied. Please allow permissions.");
-    }
-  }, []);
-
-  // Auto-open camera on mount
-  useEffect(() => {
-    if (!selectedVisitorId) {
-      openScanCamera();
-    }
-  }, []);
-
-  const closeScanCamera = useCallback(() => {
-    scanStreamRef.current?.getTracks().forEach(t => t.stop());
-    scanStreamRef.current = null;
-    setScanCameraOpen(false);
-  }, []);
-
-  const captureAndMatch = useCallback(async () => {
-    if (!scanVideoRef.current || !scanCanvasRef.current) return;
-    const video = scanVideoRef.current;
-    const canvas = scanCanvasRef.current;
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    const base64 = canvas.toDataURL("image/jpeg", 0.8).split(",")[1];
-
-    setScanning(true);
-    setMatchResult(null);
-    try {
-      const { data, error } = await supabase.functions.invoke("match-face", {
-        body: { capturedImageBase64: base64 },
-      });
-
-      if (error) throw error;
-
-      if (data?.matched && data.visitor_id) {
-        setSelectedVisitorId(data.visitor_id);
-        setMatchResult({ matched: true, visitor_name: data.visitor_name, confidence: data.confidence });
-        toast.success(`Face matched: ${data.visitor_name}!`);
-        closeScanCamera();
-      } else {
-        setMatchResult({ matched: false });
-        toast.error(data?.message || "No matching face found. Please try again or select manually.");
-      }
-    } catch (err: any) {
-      toast.error("Face matching failed. Please select your name manually.");
-      console.error("match-face error:", err);
-    } finally {
-      setScanning(false);
-    }
-  }, [closeScanCamera]);
 
   const handleRecordComplete = (video: Blob, _thumb: Blob) => {
     setVideoBlob(video);
@@ -161,11 +83,7 @@ export default function RecordReview() {
     setVideoBlob(null);
     setVideoUrl(null);
     setSelectedVisitorId("");
-    setMatchResult(null);
   };
-
-  const selectedVisitor = visitors.find(v => v.id === selectedVisitorId);
-  const selectedPhotoUrl = selectedVisitor?.photo_url ? signedPhotoUrls.get(selectedVisitor.photo_url) : null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -189,81 +107,30 @@ export default function RecordReview() {
           >
             <CheckCircle className="h-16 w-16 text-primary mx-auto" />
             <h2 className="text-2xl font-display font-bold">Thank You for Your Review!</h2>
-            <p className="text-muted-foreground">
-              Your feedback is valuable to us.
-            </p>
-            <Button variant="outline" onClick={resetForm}>
-              Submit Another Review
-            </Button>
+            <p className="text-muted-foreground">Your feedback is valuable to us.</p>
+            <Button variant="outline" onClick={resetForm}>Submit Another Review</Button>
           </motion.div>
         </main>
       ) : (
         <main className="container max-w-2xl mx-auto px-4 py-8 -mt-4 space-y-6">
-          {/* Auto Face Scan */}
-          {!selectedVisitor && scanCameraOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-card rounded-xl p-6 shadow-card border border-border space-y-4"
-            >
-              <div className="relative aspect-[4/3] rounded-lg overflow-hidden border border-border bg-muted">
-                <video
-                  ref={(el) => {
-                    (scanVideoRef as React.MutableRefObject<HTMLVideoElement | null>).current = el;
-                    if (el && scanStreamRef.current && !el.srcObject) {
-                      el.srcObject = scanStreamRef.current;
-                      el.play().catch(console.error);
-                    }
-                  }}
-                  className="w-full h-full object-cover"
-                  muted
-                  playsInline
-                  autoPlay
-                />
-                <canvas ref={scanCanvasRef} className="hidden" />
-                {scanning && (
-                  <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
-                    <div className="flex flex-col items-center gap-2">
-                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                      <span className="text-sm font-medium text-foreground">Matching face...</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-              <Button onClick={captureAndMatch} disabled={scanning} className="w-full gap-2">
-                <ScanFace className="h-4 w-4" />
-                {scanning ? "Scanning..." : "Scan Face"}
-              </Button>
-              {matchResult && !matchResult.matched && (
-                <p className="text-sm text-destructive">No match found. Please try again.</p>
-              )}
-            </motion.div>
-          )}
-
-          {/* Matched visitor display */}
-          {selectedVisitor && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="bg-card rounded-xl p-6 shadow-card border border-border"
-            >
-              <div className="flex items-center gap-4 p-4 rounded-lg bg-primary/5 border border-primary/20">
-                {selectedPhotoUrl ? (
-                  <img src={selectedPhotoUrl} alt={selectedVisitor.name} className="w-16 h-16 rounded-full object-cover ring-2 ring-primary/30" />
-                ) : (
-                  <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary font-display font-bold text-2xl">
-                    {selectedVisitor.name?.charAt(0)}
-                  </div>
-                )}
-                <div>
-                  <p className="font-semibold text-foreground">{selectedVisitor.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    ✅ Face matched ({Math.round((matchResult?.confidence || 0) * 100)}% confidence)
-                  </p>
-                </div>
-              </div>
-            </motion.div>
-          )}
+          {/* Select Visitor */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-card rounded-xl p-6 shadow-card border border-border"
+          >
+            <Label>Select Your Name *</Label>
+            <Select value={selectedVisitorId} onValueChange={setSelectedVisitorId}>
+              <SelectTrigger className="mt-2">
+                <SelectValue placeholder="Choose your name" />
+              </SelectTrigger>
+              <SelectContent>
+                {visitors.map((v) => (
+                  <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </motion.div>
 
           {/* Project Title */}
           <motion.div
@@ -277,6 +144,7 @@ export default function RecordReview() {
               value={projectTitle}
               onChange={(e) => setProjectTitle(e.target.value)}
               placeholder="Enter the project/stall name you're reviewing"
+              className="mt-2"
             />
           </motion.div>
 
