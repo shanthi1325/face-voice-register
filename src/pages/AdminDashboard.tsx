@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Users, Video, UserPlus, Star } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,30 +8,45 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { validateSchema, teamMemberSchema } from "@/lib/validation";
+import { getSignedUrls } from "@/lib/signedUrl";
 
 export default function AdminDashboard() {
   const [visitors, setVisitors] = useState<any[]>([]);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [reviews, setReviews] = useState<any[]>([]);
+  const [signedUrls, setSignedUrls] = useState<Map<string, string>>(new Map());
   const [newMember, setNewMember] = useState({ name: "", role: "", email: "", department: "" });
   const [addingMember, setAddingMember] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     const [v, t, r] = await Promise.all([
       supabase.from("visitors").select("*").order("created_at", { ascending: false }),
       supabase.from("team_members").select("*").order("created_at", { ascending: false }),
       supabase.from("video_reviews").select("*").order("created_at", { ascending: false }),
     ]);
-    if (v.data) setVisitors(v.data);
+    const visitorsData = v.data || [];
+    const reviewsData = r.data || [];
+    setVisitors(visitorsData);
     if (t.data) setTeamMembers(t.data);
-    if (r.data) setReviews(r.data);
-  };
+    setReviews(reviewsData);
+
+    // Get signed URLs for private bucket media
+    const allUrls: string[] = [];
+    visitorsData.forEach((vis: any) => { if (vis.photo_url) allUrls.push(vis.photo_url); });
+    reviewsData.forEach((rev: any) => {
+      if (rev.video_url) allUrls.push(rev.video_url);
+      if (rev.photo_at_review) allUrls.push(rev.photo_at_review);
+    });
+    if (allUrls.length > 0) {
+      const urls = await getSignedUrls(allUrls);
+      setSignedUrls(urls);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const addTeamMember = async () => {
     const validation = validateSchema(teamMemberSchema, newMember);
@@ -118,8 +133,8 @@ export default function AdminDashboard() {
                     {visitors.map((v) => (
                       <tr key={v.id} className="hover:bg-muted/50">
                         <td className="px-4 py-3">
-                          {v.photo_url ? (
-                            <img src={v.photo_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+                          {v.photo_url && signedUrls.get(v.photo_url) ? (
+                            <img src={signedUrls.get(v.photo_url)!} alt="" className="w-10 h-10 rounded-full object-cover" />
                           ) : (
                             <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
                               <Users className="h-4 w-4" />
@@ -211,11 +226,11 @@ export default function AdminDashboard() {
                 const visitor = visitors.find((v) => v.id === r.visitor_id);
                 return (
                   <div key={r.id} className="bg-card rounded-xl border border-border overflow-hidden shadow-card">
-                    {r.video_url && (
-                      <video src={r.video_url} controls className="w-full aspect-video object-cover" />
+                    {r.video_url && signedUrls.get(r.video_url) && (
+                      <video src={signedUrls.get(r.video_url)!} controls className="w-full aspect-video object-cover" />
                     )}
-                    {!r.video_url && r.photo_at_review && (
-                      <img src={r.photo_at_review} alt="" className="w-full aspect-video object-cover" />
+                    {!r.video_url && r.photo_at_review && signedUrls.get(r.photo_at_review) && (
+                      <img src={signedUrls.get(r.photo_at_review)!} alt="" className="w-full aspect-video object-cover" />
                     )}
                     <div className="p-4 space-y-2">
                       {r.project_title && (
@@ -225,8 +240,8 @@ export default function AdminDashboard() {
                       )}
                       {visitor && (
                         <div className="flex items-center gap-2">
-                          {visitor.photo_url ? (
-                            <img src={visitor.photo_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+                          {visitor.photo_url && signedUrls.get(visitor.photo_url) ? (
+                            <img src={signedUrls.get(visitor.photo_url)!} alt="" className="w-8 h-8 rounded-full object-cover" />
                           ) : (
                             <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs font-bold">
                               {visitor.name?.charAt(0)}
