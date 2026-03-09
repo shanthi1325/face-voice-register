@@ -226,11 +226,11 @@ export default function AdminDashboard() {
                 const visitor = visitors.find((v) => v.id === r.visitor_id);
                 return (
                   <div key={r.id} className="bg-card rounded-xl border border-border overflow-hidden shadow-card">
-                    {r.video_url && (
-                      <video src={r.video_url} controls className="w-full aspect-video object-cover" />
+                    {r.video_url && signedUrls.get(r.video_url) && (
+                      <video src={signedUrls.get(r.video_url)!} controls className="w-full aspect-video object-cover" />
                     )}
-                    {!r.video_url && r.photo_at_review && (
-                      <img src={r.photo_at_review} alt="" className="w-full aspect-video object-cover" />
+                    {!r.video_url && r.photo_at_review && signedUrls.get(r.photo_at_review) && (
+                      <img src={signedUrls.get(r.photo_at_review)!} alt="" className="w-full aspect-video object-cover" />
                     )}
                     <div className="p-4 space-y-2">
                       {r.project_title && (
@@ -240,8 +240,8 @@ export default function AdminDashboard() {
                       )}
                       {visitor && (
                         <div className="flex items-center gap-2">
-                          {visitor.photo_url ? (
-                            <img src={visitor.photo_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+                          {visitor.photo_url && signedUrls.get(visitor.photo_url) ? (
+                            <img src={signedUrls.get(visitor.photo_url)!} alt="" className="w-8 h-8 rounded-full object-cover" />
                           ) : (
                             <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs font-bold">
                               {visitor.name?.charAt(0)}
