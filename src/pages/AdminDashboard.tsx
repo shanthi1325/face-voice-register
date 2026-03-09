@@ -133,8 +133,8 @@ export default function AdminDashboard() {
                     {visitors.map((v) => (
                       <tr key={v.id} className="hover:bg-muted/50">
                         <td className="px-4 py-3">
-                          {v.photo_url ? (
-                            <img src={v.photo_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+                          {v.photo_url && signedUrls.get(v.photo_url) ? (
+                            <img src={signedUrls.get(v.photo_url)!} alt="" className="w-10 h-10 rounded-full object-cover" />
                           ) : (
                             <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
                               <Users className="h-4 w-4" />
