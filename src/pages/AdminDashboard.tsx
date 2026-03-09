@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Users, Video, UserPlus, Star, LogOut } from "lucide-react";
+import { Users, Video, UserPlus, Star } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { useAuth } from "@/hooks/useAuth";
 import { validateSchema, teamMemberSchema } from "@/lib/validation";
 
 export default function AdminDashboard() {
@@ -17,7 +16,7 @@ export default function AdminDashboard() {
   const [newMember, setNewMember] = useState({ name: "", role: "", email: "", department: "" });
   const [addingMember, setAddingMember] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const { signOut } = useAuth();
+  
 
   useEffect(() => {
     fetchData();
@@ -72,9 +71,6 @@ export default function AdminDashboard() {
               </h1>
               <p className="text-primary-foreground/80 mt-2">Manage your expo</p>
             </div>
-            <Button variant="outline" size="sm" onClick={signOut} className="gap-2 bg-transparent border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10">
-              <LogOut className="h-4 w-4" /> Logout
-            </Button>
           </div>
         </div>
       </header>
