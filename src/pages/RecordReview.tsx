@@ -10,6 +10,7 @@ import { VideoRecorder } from "@/components/VideoRecorder";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { validateSchema, reviewSchema } from "@/lib/validation";
+import { getSignedUrls } from "@/lib/signedUrl";
 
 export default function RecordReview() {
   const [rating, setRating] = useState(0);
@@ -21,10 +22,20 @@ export default function RecordReview() {
   const [submitted, setSubmitted] = useState(false);
   const [visitors, setVisitors] = useState<any[]>([]);
   const [selectedVisitorId, setSelectedVisitorId] = useState<string>("");
+  const [signedPhotoUrls, setSignedPhotoUrls] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
     supabase.from("visitors").select("id, name, photo_url").order("created_at", { ascending: false })
-      .then(({ data }) => { if (data) setVisitors(data); });
+      .then(async ({ data }) => {
+        if (data) {
+          setVisitors(data);
+          const photoUrls = data.filter(v => v.photo_url).map(v => v.photo_url!);
+          if (photoUrls.length > 0) {
+            const signed = await getSignedUrls(photoUrls);
+            setSignedPhotoUrls(signed);
+          }
+        }
+      });
   }, []);
 
   const handleRecordComplete = (video: Blob, _thumb: Blob) => {
@@ -142,6 +153,34 @@ export default function RecordReview() {
                 <p className="text-xs text-destructive mt-1">No registered visitors found. Please register first.</p>
               )}
             </div>
+
+            {/* Show matched face photo when visitor is selected */}
+            {selectedVisitorId && (() => {
+              const selected = visitors.find(v => v.id === selectedVisitorId);
+              if (!selected) return null;
+              const photoUrl = selected.photo_url ? signedPhotoUrls.get(selected.photo_url) : null;
+              return (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="flex items-center gap-4 p-4 rounded-lg bg-primary/5 border border-primary/20"
+                >
+                  {photoUrl ? (
+                    <img src={photoUrl} alt={selected.name} className="w-16 h-16 rounded-full object-cover ring-2 ring-primary/30" />
+                  ) : (
+                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary font-display font-bold text-2xl">
+                      {selected.name?.charAt(0)}
+                    </div>
+                  )}
+                  <div>
+                    <p className="font-semibold text-foreground">{selected.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {photoUrl ? "✅ Face photo matched from registration" : "No face photo on file"}
+                    </p>
+                  </div>
+                </motion.div>
+              );
+            })()}
 
             <div>
               <Label>Project Title *</Label>
