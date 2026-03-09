@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Users, Video, UserPlus, Star } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { validateSchema, teamMemberSchema } from "@/lib/validation";
+import { getSignedUrls } from "@/lib/signedUrl";
 
 export default function AdminDashboard() {
   const [visitors, setVisitors] = useState<any[]>([]);
