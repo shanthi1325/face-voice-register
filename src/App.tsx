@@ -27,11 +27,7 @@ const App = () => (
             <Route path="/register" element={<VisitorRegistration />} />
             <Route path="/review" element={<RecordReview />} />
             <Route path="/admin/login" element={<AdminLogin />} />
-            <Route path="/admin" element={
-              <ProtectedRoute>
-                <AdminDashboard />
-              </ProtectedRoute>
-            } />
+            <Route path="/admin" element={<AdminDashboard />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </div>
