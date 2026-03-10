@@ -15,11 +15,27 @@ export default function RecordReview() {
   const [rating, setRating] = useState(0);
   const [reviewText, setReviewText] = useState("");
   const [projectTitle, setProjectTitle] = useState("");
+  const [customProject, setCustomProject] = useState(false);
+  const [existingProjects, setExistingProjects] = useState<string[]>([]);
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [thumbnailBlob, setThumbnailBlob] = useState<Blob | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+
+  useEffect(() => {
+    const fetchProjects = async () => {
+      const { data } = await supabase
+        .from("video_reviews")
+        .select("project_title")
+        .not("project_title", "is", null);
+      if (data) {
+        const unique = [...new Set(data.map((r) => r.project_title).filter(Boolean))] as string[];
+        setExistingProjects(unique.sort());
+      }
+    };
+    fetchProjects();
+  }, []);
 
   const handleRecordComplete = (video: Blob, thumb: Blob) => {
     setVideoBlob(video);
