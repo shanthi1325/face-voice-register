@@ -119,7 +119,7 @@ export default function RecordReview() {
         review_text: reviewText || null,
         rating,
         video_url: uploadedVideoUrl || null,
-        visitor_id: matchData.visitor_id,
+        visitor_id: visitorId,
         project_title: projectTitle.trim(),
         photo_at_review: photoAtReviewUrl || null,
       });
