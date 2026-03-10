@@ -22,6 +22,7 @@ export default function RecordReview() {
   const [thumbnailBlob, setThumbnailBlob] = useState<Blob | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [matchedName, setMatchedName] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchProjects = async () => {
