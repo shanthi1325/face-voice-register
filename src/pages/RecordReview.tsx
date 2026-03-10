@@ -130,6 +130,7 @@ export default function RecordReview() {
     setProjectTitle("");
     setCustomProject(false);
     setMatchedName(null);
+    setSelectedVisitorId("");
     setVideoBlob(null);
     setVideoUrl(null);
     setThumbnailBlob(null);
