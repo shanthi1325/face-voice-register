@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Star, CheckCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { VideoRecorder } from "@/components/VideoRecorder";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -14,11 +15,27 @@ export default function RecordReview() {
   const [rating, setRating] = useState(0);
   const [reviewText, setReviewText] = useState("");
   const [projectTitle, setProjectTitle] = useState("");
+  const [customProject, setCustomProject] = useState(false);
+  const [existingProjects, setExistingProjects] = useState<string[]>([]);
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [thumbnailBlob, setThumbnailBlob] = useState<Blob | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+
+  useEffect(() => {
+    const fetchProjects = async () => {
+      const { data } = await supabase
+        .from("video_reviews")
+        .select("project_title")
+        .not("project_title", "is", null);
+      if (data) {
+        const unique = [...new Set(data.map((r) => r.project_title).filter(Boolean))] as string[];
+        setExistingProjects(unique.sort());
+      }
+    };
+    fetchProjects();
+  }, []);
 
   const handleRecordComplete = (video: Blob, thumb: Blob) => {
     setVideoBlob(video);
@@ -104,6 +121,7 @@ export default function RecordReview() {
     setRating(0);
     setReviewText("");
     setProjectTitle("");
+    setCustomProject(false);
     setVideoBlob(null);
     setVideoUrl(null);
     setThumbnailBlob(null);
@@ -141,15 +159,52 @@ export default function RecordReview() {
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-card rounded-xl p-6 shadow-card border border-border"
+            className="bg-card rounded-xl p-6 shadow-card border border-border space-y-3"
           >
             <Label>Project Title *</Label>
-            <Input
-              value={projectTitle}
-              onChange={(e) => setProjectTitle(e.target.value)}
-              placeholder="Enter the project/stall name you're reviewing"
-              className="mt-2"
-            />
+            {!customProject && existingProjects.length > 0 ? (
+              <>
+                <Select
+                  value={projectTitle}
+                  onValueChange={(val) => {
+                    if (val === "__other__") {
+                      setCustomProject(true);
+                      setProjectTitle("");
+                    } else {
+                      setProjectTitle(val);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="mt-2">
+                    <SelectValue placeholder="Select a project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {existingProjects.map((p) => (
+                      <SelectItem key={p} value={p}>{p}</SelectItem>
+                    ))}
+                    <SelectItem value="__other__">Other (type manually)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </>
+            ) : (
+              <div className="space-y-2">
+                <Input
+                  value={projectTitle}
+                  onChange={(e) => setProjectTitle(e.target.value)}
+                  placeholder="Enter the project/stall name you're reviewing"
+                  className="mt-2"
+                />
+                {existingProjects.length > 0 && (
+                  <button
+                    type="button"
+                    className="text-sm text-primary underline"
+                    onClick={() => { setCustomProject(false); setProjectTitle(""); }}
+                  >
+                    Select from existing projects
+                  </button>
+                )}
+              </div>
+            )}
           </motion.div>
 
           {/* Video */}
