@@ -190,9 +190,40 @@ export default function RecordReview() {
               </span>
             </motion.div>
           )}
+          {/* Visitor Name Selection */}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
+            className="bg-card rounded-xl p-6 shadow-card border border-border space-y-3"
+          >
+            <Label>Your Name *</Label>
+            <Select
+              value={selectedVisitorId}
+              onValueChange={(val) => {
+                setSelectedVisitorId(val);
+                const found = registeredVisitors.find((v) => v.id === val);
+                setMatchedName(found?.name || null);
+              }}
+            >
+              <SelectTrigger className="mt-2">
+                <SelectValue placeholder="Select your name" />
+              </SelectTrigger>
+              <SelectContent>
+                {registeredVisitors.map((v) => (
+                  <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              If you don't see your name, face matching will be used from your video.
+            </p>
+          </motion.div>
+
+          {/* Project Title */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
             className="bg-card rounded-xl p-6 shadow-card border border-border space-y-3"
           >
             <Label>Project Title *</Label>
