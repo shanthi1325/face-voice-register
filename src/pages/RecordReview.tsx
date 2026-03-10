@@ -158,15 +158,52 @@ export default function RecordReview() {
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-card rounded-xl p-6 shadow-card border border-border"
+            className="bg-card rounded-xl p-6 shadow-card border border-border space-y-3"
           >
             <Label>Project Title *</Label>
-            <Input
-              value={projectTitle}
-              onChange={(e) => setProjectTitle(e.target.value)}
-              placeholder="Enter the project/stall name you're reviewing"
-              className="mt-2"
-            />
+            {!customProject && existingProjects.length > 0 ? (
+              <>
+                <Select
+                  value={projectTitle}
+                  onValueChange={(val) => {
+                    if (val === "__other__") {
+                      setCustomProject(true);
+                      setProjectTitle("");
+                    } else {
+                      setProjectTitle(val);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="mt-2">
+                    <SelectValue placeholder="Select a project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {existingProjects.map((p) => (
+                      <SelectItem key={p} value={p}>{p}</SelectItem>
+                    ))}
+                    <SelectItem value="__other__">Other (type manually)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </>
+            ) : (
+              <div className="space-y-2">
+                <Input
+                  value={projectTitle}
+                  onChange={(e) => setProjectTitle(e.target.value)}
+                  placeholder="Enter the project/stall name you're reviewing"
+                  className="mt-2"
+                />
+                {existingProjects.length > 0 && (
+                  <button
+                    type="button"
+                    className="text-sm text-primary underline"
+                    onClick={() => { setCustomProject(false); setProjectTitle(""); }}
+                  >
+                    Select from existing projects
+                  </button>
+                )}
+              </div>
+            )}
           </motion.div>
 
           {/* Video */}
