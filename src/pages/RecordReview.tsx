@@ -60,49 +60,53 @@ export default function RecordReview() {
       if (firstErr) toast.error(firstErr);
       return;
     }
+    setSubmitting(true);
+    try {
+      // Determine visitor: use selected visitor or face match
+      let visitorId = selectedVisitorId || null;
+      let visitorName: string | null = null;
 
-    // Determine visitor: use selected visitor or face match
-    let visitorId = selectedVisitorId || null;
-    let visitorName: string | null = null;
-
-    if (visitorId) {
-      const found = registeredVisitors.find((v) => v.id === visitorId);
-      visitorName = found?.name || null;
-    }
-
-    // If no visitor selected, try face matching with thumbnail
-    if (!visitorId) {
-      if (!thumbnailBlob || thumbnailBlob.size === 0) {
-        toast.error("Please select your name or record a video for face identification.");
-        return;
+      if (visitorId) {
+        const found = registeredVisitors.find((v) => v.id === visitorId);
+        visitorName = found?.name || null;
       }
 
-      const base64 = await blobToBase64(thumbnailBlob);
-      const { data: matchData, error: matchError } = await supabase.functions.invoke("match-face", {
-        body: { capturedImageBase64: base64 },
-      });
+      // If no visitor selected, try face matching with thumbnail
+      if (!visitorId) {
+        if (!thumbnailBlob || thumbnailBlob.size === 0) {
+          toast.error("Please select your name or record a video for face identification.");
+          setSubmitting(false);
+          return;
+        }
 
-      if (matchError) throw matchError;
+        const base64 = await blobToBase64(thumbnailBlob);
+        const { data: matchData, error: matchError } = await supabase.functions.invoke("match-face", {
+          body: { capturedImageBase64: base64 },
+        });
 
-      if (!matchData?.matched || !matchData.visitor_id) {
-        toast.error(matchData?.message || "Could not identify you. Please select your name or register first.");
-        setSubmitting(false);
-        return;
+        if (matchError) throw matchError;
+
+        if (!matchData?.matched || !matchData.visitor_id) {
+          toast.error(matchData?.message || "Could not identify you. Please select your name or register first.");
+          setSubmitting(false);
+          return;
+        }
+
+        visitorId = matchData.visitor_id;
+        visitorName = matchData.visitor_name || "Unknown";
+        toast.success(`Identified as ${visitorName} (${Math.round((matchData.confidence || 0) * 100)}% confidence)`);
       }
 
-      visitorId = matchData.visitor_id;
-      visitorName = matchData.visitor_name || "Unknown";
-      toast.success(`Identified as ${visitorName} (${Math.round((matchData.confidence || 0) * 100)}% confidence)`);
-    }
-
-    setMatchedName(visitorName);
+      setMatchedName(visitorName);
 
       // Upload face photo
       let photoAtReviewUrl: string | undefined;
-      const photoName = `reviews/${Date.now()}_face.jpg`;
-      const { error: photoUpErr } = await supabase.storage.from("expo-media").upload(photoName, thumbnailBlob);
-      if (!photoUpErr) {
-        photoAtReviewUrl = supabase.storage.from("expo-media").getPublicUrl(photoName).data.publicUrl;
+      if (thumbnailBlob) {
+        const photoName = `reviews/${Date.now()}_face.jpg`;
+        const { error: photoUpErr } = await supabase.storage.from("expo-media").upload(photoName, thumbnailBlob);
+        if (!photoUpErr) {
+          photoAtReviewUrl = supabase.storage.from("expo-media").getPublicUrl(photoName).data.publicUrl;
+        }
       }
 
       // Upload video
