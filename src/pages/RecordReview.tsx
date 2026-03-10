@@ -61,17 +61,23 @@ export default function RecordReview() {
       return;
     }
 
-    if (!thumbnailBlob || thumbnailBlob.size === 0) {
-      toast.error("Please record a video first so we can identify you.");
-      return;
+    // Determine visitor: use selected visitor or face match
+    let visitorId = selectedVisitorId || null;
+    let visitorName: string | null = null;
+
+    if (visitorId) {
+      const found = registeredVisitors.find((v) => v.id === visitorId);
+      visitorName = found?.name || null;
     }
 
-    setSubmitting(true);
-    try {
-      // Convert thumbnail to base64 for face matching
-      const base64 = await blobToBase64(thumbnailBlob);
+    // If no visitor selected, try face matching with thumbnail
+    if (!visitorId) {
+      if (!thumbnailBlob || thumbnailBlob.size === 0) {
+        toast.error("Please select your name or record a video for face identification.");
+        return;
+      }
 
-      // Match face against registered visitors
+      const base64 = await blobToBase64(thumbnailBlob);
       const { data: matchData, error: matchError } = await supabase.functions.invoke("match-face", {
         body: { capturedImageBase64: base64 },
       });
@@ -79,13 +85,17 @@ export default function RecordReview() {
       if (matchError) throw matchError;
 
       if (!matchData?.matched || !matchData.visitor_id) {
-        toast.error(matchData?.message || "Could not identify you. Please make sure you registered first.");
+        toast.error(matchData?.message || "Could not identify you. Please select your name or register first.");
         setSubmitting(false);
         return;
       }
 
-      setMatchedName(matchData.visitor_name || "Unknown");
-      toast.success(`Identified as ${matchData.visitor_name} (${Math.round((matchData.confidence || 0) * 100)}% confidence)`);
+      visitorId = matchData.visitor_id;
+      visitorName = matchData.visitor_name || "Unknown";
+      toast.success(`Identified as ${visitorName} (${Math.round((matchData.confidence || 0) * 100)}% confidence)`);
+    }
+
+    setMatchedName(visitorName);
 
       // Upload face photo
       let photoAtReviewUrl: string | undefined;
