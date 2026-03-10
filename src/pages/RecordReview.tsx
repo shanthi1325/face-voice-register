@@ -23,19 +23,24 @@ export default function RecordReview() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [matchedName, setMatchedName] = useState<string | null>(null);
+  const [registeredVisitors, setRegisteredVisitors] = useState<{ id: string; name: string }[]>([]);
+  const [selectedVisitorId, setSelectedVisitorId] = useState<string>("");
 
   useEffect(() => {
-    const fetchProjects = async () => {
-      const { data } = await supabase
-        .from("video_reviews")
-        .select("project_title")
-        .not("project_title", "is", null);
-      if (data) {
-        const unique = [...new Set(data.map((r) => r.project_title).filter(Boolean))] as string[];
+    const fetchData = async () => {
+      const [projectsRes, visitorsRes] = await Promise.all([
+        supabase.from("video_reviews").select("project_title").not("project_title", "is", null),
+        supabase.from("visitors").select("id, name").order("name"),
+      ]);
+      if (projectsRes.data) {
+        const unique = [...new Set(projectsRes.data.map((r) => r.project_title).filter(Boolean))] as string[];
         setExistingProjects(unique.sort());
       }
+      if (visitorsRes.data) {
+        setRegisteredVisitors(visitorsRes.data);
+      }
     };
-    fetchProjects();
+    fetchData();
   }, []);
 
   const handleRecordComplete = (video: Blob, thumb: Blob) => {
