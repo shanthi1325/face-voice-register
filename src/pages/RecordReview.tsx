@@ -151,7 +151,7 @@ export default function RecordReview() {
             className="bg-card rounded-xl p-10 shadow-card border border-border text-center space-y-4"
           >
             <CheckCircle className="h-16 w-16 text-primary mx-auto" />
-            <h2 className="text-2xl font-display font-bold">Thank You for Your Review!</h2>
+            <h2 className="text-2xl font-display font-bold">Thank You{matchedName ? `, ${matchedName}` : ""}!</h2>
             <p className="text-muted-foreground">Your feedback is valuable to us.</p>
             <Button variant="outline" onClick={resetForm}>Submit Another Review</Button>
           </motion.div>
