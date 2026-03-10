@@ -121,6 +121,7 @@ export default function RecordReview() {
     setRating(0);
     setReviewText("");
     setProjectTitle("");
+    setCustomProject(false);
     setVideoBlob(null);
     setVideoUrl(null);
     setThumbnailBlob(null);
