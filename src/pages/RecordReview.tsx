@@ -124,6 +124,7 @@ export default function RecordReview() {
     setReviewText("");
     setProjectTitle("");
     setCustomProject(false);
+    setMatchedName(null);
     setVideoBlob(null);
     setVideoUrl(null);
     setThumbnailBlob(null);
