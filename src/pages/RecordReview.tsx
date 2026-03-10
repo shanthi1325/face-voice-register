@@ -79,6 +79,7 @@ export default function RecordReview() {
         return;
       }
 
+      setMatchedName(matchData.visitor_name || "Unknown");
       toast.success(`Identified as ${matchData.visitor_name} (${Math.round((matchData.confidence || 0) * 100)}% confidence)`);
 
       // Upload face photo
