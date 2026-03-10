@@ -22,6 +22,7 @@ export default function RecordReview() {
   const [thumbnailBlob, setThumbnailBlob] = useState<Blob | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [matchedName, setMatchedName] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -78,6 +79,7 @@ export default function RecordReview() {
         return;
       }
 
+      setMatchedName(matchData.visitor_name || "Unknown");
       toast.success(`Identified as ${matchData.visitor_name} (${Math.round((matchData.confidence || 0) * 100)}% confidence)`);
 
       // Upload face photo
@@ -122,6 +124,7 @@ export default function RecordReview() {
     setReviewText("");
     setProjectTitle("");
     setCustomProject(false);
+    setMatchedName(null);
     setVideoBlob(null);
     setVideoUrl(null);
     setThumbnailBlob(null);
@@ -148,14 +151,25 @@ export default function RecordReview() {
             className="bg-card rounded-xl p-10 shadow-card border border-border text-center space-y-4"
           >
             <CheckCircle className="h-16 w-16 text-primary mx-auto" />
-            <h2 className="text-2xl font-display font-bold">Thank You for Your Review!</h2>
+            <h2 className="text-2xl font-display font-bold">Thank You{matchedName ? `, ${matchedName}` : ""}!</h2>
             <p className="text-muted-foreground">Your feedback is valuable to us.</p>
             <Button variant="outline" onClick={resetForm}>Submit Another Review</Button>
           </motion.div>
         </main>
       ) : (
         <main className="container max-w-2xl mx-auto px-4 py-8 -mt-4 space-y-6">
-          {/* Project Title */}
+          {matchedName && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-primary/10 border border-primary/20 rounded-xl px-5 py-3 flex items-center gap-3"
+            >
+              <CheckCircle className="h-5 w-5 text-primary shrink-0" />
+              <span className="text-sm font-medium">
+                Reviewing as <span className="font-bold text-foreground">{matchedName}</span>
+              </span>
+            </motion.div>
+          )}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
