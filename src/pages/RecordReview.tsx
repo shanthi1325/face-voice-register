@@ -23,19 +23,24 @@ export default function RecordReview() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [matchedName, setMatchedName] = useState<string | null>(null);
+  const [registeredVisitors, setRegisteredVisitors] = useState<{ id: string; name: string }[]>([]);
+  const [selectedVisitorId, setSelectedVisitorId] = useState<string>("");
 
   useEffect(() => {
-    const fetchProjects = async () => {
-      const { data } = await supabase
-        .from("video_reviews")
-        .select("project_title")
-        .not("project_title", "is", null);
-      if (data) {
-        const unique = [...new Set(data.map((r) => r.project_title).filter(Boolean))] as string[];
+    const fetchData = async () => {
+      const [projectsRes, visitorsRes] = await Promise.all([
+        supabase.from("video_reviews").select("project_title").not("project_title", "is", null),
+        supabase.from("visitors").select("id, name").order("name"),
+      ]);
+      if (projectsRes.data) {
+        const unique = [...new Set(projectsRes.data.map((r) => r.project_title).filter(Boolean))] as string[];
         setExistingProjects(unique.sort());
       }
+      if (visitorsRes.data) {
+        setRegisteredVisitors(visitorsRes.data);
+      }
     };
-    fetchProjects();
+    fetchData();
   }, []);
 
   const handleRecordComplete = (video: Blob, thumb: Blob) => {
@@ -55,39 +60,53 @@ export default function RecordReview() {
       if (firstErr) toast.error(firstErr);
       return;
     }
-
-    if (!thumbnailBlob || thumbnailBlob.size === 0) {
-      toast.error("Please record a video first so we can identify you.");
-      return;
-    }
-
     setSubmitting(true);
     try {
-      // Convert thumbnail to base64 for face matching
-      const base64 = await blobToBase64(thumbnailBlob);
+      // Determine visitor: use selected visitor or face match
+      let visitorId = selectedVisitorId || null;
+      let visitorName: string | null = null;
 
-      // Match face against registered visitors
-      const { data: matchData, error: matchError } = await supabase.functions.invoke("match-face", {
-        body: { capturedImageBase64: base64 },
-      });
-
-      if (matchError) throw matchError;
-
-      if (!matchData?.matched || !matchData.visitor_id) {
-        toast.error(matchData?.message || "Could not identify you. Please make sure you registered first.");
-        setSubmitting(false);
-        return;
+      if (visitorId) {
+        const found = registeredVisitors.find((v) => v.id === visitorId);
+        visitorName = found?.name || null;
       }
 
-      setMatchedName(matchData.visitor_name || "Unknown");
-      toast.success(`Identified as ${matchData.visitor_name} (${Math.round((matchData.confidence || 0) * 100)}% confidence)`);
+      // If no visitor selected, try face matching with thumbnail
+      if (!visitorId) {
+        if (!thumbnailBlob || thumbnailBlob.size === 0) {
+          toast.error("Please select your name or record a video for face identification.");
+          setSubmitting(false);
+          return;
+        }
+
+        const base64 = await blobToBase64(thumbnailBlob);
+        const { data: matchData, error: matchError } = await supabase.functions.invoke("match-face", {
+          body: { capturedImageBase64: base64 },
+        });
+
+        if (matchError) throw matchError;
+
+        if (!matchData?.matched || !matchData.visitor_id) {
+          toast.error(matchData?.message || "Could not identify you. Please select your name or register first.");
+          setSubmitting(false);
+          return;
+        }
+
+        visitorId = matchData.visitor_id;
+        visitorName = matchData.visitor_name || "Unknown";
+        toast.success(`Identified as ${visitorName} (${Math.round((matchData.confidence || 0) * 100)}% confidence)`);
+      }
+
+      setMatchedName(visitorName);
 
       // Upload face photo
       let photoAtReviewUrl: string | undefined;
-      const photoName = `reviews/${Date.now()}_face.jpg`;
-      const { error: photoUpErr } = await supabase.storage.from("expo-media").upload(photoName, thumbnailBlob);
-      if (!photoUpErr) {
-        photoAtReviewUrl = supabase.storage.from("expo-media").getPublicUrl(photoName).data.publicUrl;
+      if (thumbnailBlob) {
+        const photoName = `reviews/${Date.now()}_face.jpg`;
+        const { error: photoUpErr } = await supabase.storage.from("expo-media").upload(photoName, thumbnailBlob);
+        if (!photoUpErr) {
+          photoAtReviewUrl = supabase.storage.from("expo-media").getPublicUrl(photoName).data.publicUrl;
+        }
       }
 
       // Upload video
@@ -104,7 +123,7 @@ export default function RecordReview() {
         review_text: reviewText || null,
         rating,
         video_url: uploadedVideoUrl || null,
-        visitor_id: matchData.visitor_id,
+        visitor_id: visitorId,
         project_title: projectTitle.trim(),
         photo_at_review: photoAtReviewUrl || null,
       });
@@ -125,6 +144,7 @@ export default function RecordReview() {
     setProjectTitle("");
     setCustomProject(false);
     setMatchedName(null);
+    setSelectedVisitorId("");
     setVideoBlob(null);
     setVideoUrl(null);
     setThumbnailBlob(null);
@@ -170,9 +190,40 @@ export default function RecordReview() {
               </span>
             </motion.div>
           )}
+          {/* Visitor Name Selection */}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
+            className="bg-card rounded-xl p-6 shadow-card border border-border space-y-3"
+          >
+            <Label>Your Name *</Label>
+            <Select
+              value={selectedVisitorId}
+              onValueChange={(val) => {
+                setSelectedVisitorId(val);
+                const found = registeredVisitors.find((v) => v.id === val);
+                setMatchedName(found?.name || null);
+              }}
+            >
+              <SelectTrigger className="mt-2">
+                <SelectValue placeholder="Select your name" />
+              </SelectTrigger>
+              <SelectContent>
+                {registeredVisitors.map((v) => (
+                  <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              If you don't see your name, face matching will be used from your video.
+            </p>
+          </motion.div>
+
+          {/* Project Title */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
             className="bg-card rounded-xl p-6 shadow-card border border-border space-y-3"
           >
             <Label>Project Title *</Label>
